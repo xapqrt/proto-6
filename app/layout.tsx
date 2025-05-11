@@ -1,6 +1,6 @@
 'use client'; // Top-level layout now needs to be client due to hooks
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import './globals.css';
 import {
   SidebarProvider,
@@ -25,6 +25,8 @@ import {
   Clock,
   Target,
   LogOut,
+  Menu,
+  X
 } from 'lucide-react';
 import { Toaster } from '@/components/ui/toaster';
 import { Logo } from '@/components/ui/logo';
@@ -84,6 +86,7 @@ export default function RootLayout({
 
 function AppContent() {
   const { isMobile, setOpenMobile, state: sidebarState } = useSidebar();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, signOut, loading: authLoading } = useAuth();
   const location = useLocation();
   
@@ -100,6 +103,19 @@ function AppContent() {
   ], []);
 
   const showSidebar = user && !authLoading;
+
+  // Get current page title based on location
+  const currentPage = menuItems.find(item => item.path === location.pathname)?.label || "Dashboard";
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Handle toggling the mobile menu
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(prev => !prev);
+  };
 
   return (
     <div className={cn('flex min-h-screen w-full', 'antialiased font-sans')}>
@@ -161,6 +177,60 @@ function AppContent() {
           "p-4 md:p-8 space-y-8"
         )}
       >
+        {/* Mobile Header with Hamburger */}
+         {showSidebar && (
+          <div className="sticky top-0 z-30 flex items-center justify-between p-4 border-b md:hidden bg-background">
+            <h1 className="text-xl font-semibold">{currentPage}</h1>
+            <Button variant="ghost" size="icon" onClick={toggleMobileMenu} aria-label="Toggle menu">
+              {mobileMenuOpen ? <X /> : <Menu />}
+            </Button>
+          </div>
+        )}
+        
+        {/* Mobile Menu Dropdown */}
+        {showSidebar && mobileMenuOpen && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-black bg-opacity-50 backdrop-blur-lg border-b shadow-lg md:hidden">
+          {/* <div className="fixed top-0 left-0 right-0 z-50 bg-background border-b shadow-lg md:hidden"> */}
+            <div className="p-2 space-y-1">
+              {menuItems.map((item) => (
+                <RouterLink 
+                  key={item.path} 
+                  to={item.path}
+                  className="block"
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "w-full justify-start",
+                      location.pathname === item.path && "bg-accent"
+                    )}
+                  >
+                    {item.icon}
+                    <span className="ml-2">{item.label}</span>
+                  </Button>
+                </RouterLink>
+              ))}
+              <div className="pt-2 mt-2 border-t flex items-center justify-between">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={signOut}
+                  className="hover-glow"
+                  disabled={authLoading}
+                >
+                  {authLoading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <LogOut className="w-4 h-4 mr-2" />
+                  )}
+                  <span>Logout</span>
+                </Button>
+                <ThemeToggleButton />
+              </div>
+            </div>
+          </div>
+        )}
         <Routes>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/materials" element={<MaterialsPage />} />
@@ -179,5 +249,4 @@ function AppContent() {
     </div>
   );
 }
-
 
