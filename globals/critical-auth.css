@@ -1,0 +1,114 @@
+/* Global critical styles for auth transitions */
+
+/* Universal first-load blocking - this will hide EVERYTHING initially */
+body:not(.loaded) * {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Extreme blocking during initial load or immediate after auth */
+body.immediate-block * {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+body.immediate-block .critical-auth-overlay,
+body.immediate-block .critical-auth-overlay *,
+body:not(.loaded) .critical-auth-overlay,
+body:not(.loaded) .critical-auth-overlay * {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Always hide login form elements when user is authenticated */
+html form,
+html:has(body.authenticated) form,
+html:has(body.auth-transitioning) form,
+html:has([data-auth-state="transitioning"]) form,
+html:has([data-auth-state="authenticated"]) form {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Critical selector to prevent login forms from being visible during transitions */
+form,
+.login-form,
+.card,
+input[type="email"],
+input[type="password"],
+button[type="submit"],
+body.auth-transitioning form,
+body.auth-transitioning .login-form,
+body.auth-transitioning .card,
+body.auth-transitioning input,
+body.auth-transitioning [class*="login"],
+body.auth-transitioning.auth-redirect form,
+[data-auth-state="transitioning"] form,
+[data-auth-state="authenticated"] [class*="login"],
+[data-route-transition="login-to-dashboard"] * {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  position: absolute !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+  transform: scale(0) !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+}
+
+/* Extreme priority override */
+.critical-auth-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999999 !important;
+  background-color: var(--background, #fff) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  flex-direction: column !important;
+  pointer-events: auto !important;
+}
+
+/* Additional rules to ensure safety */
+body:has(.critical-auth-overlay) * {
+  pointer-events: none !important;
+}
+
+body:has(.critical-auth-overlay) .critical-auth-overlay,
+body:has(.critical-auth-overlay) .critical-auth-overlay * {
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: flex !important;
+}
+
+/* Super specific blocking by attribute */
+[data-auth-hidden="true"],
+*:has([data-auth-hidden="true"]) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Double protection for login elements */
+*:has(input[type="email"]) *,
+*:has(input[type="password"]) *,
+*:has(form) *,
+form,
+.login-form,
+.card:has(input) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}

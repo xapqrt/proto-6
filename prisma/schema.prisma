@@ -1,0 +1,187 @@
+// datasource db {
+//   provider = "sqlite" // Or "postgresql", "mysql"
+//   url      = env("DATABASE_URL")
+// }
+
+// generator client {
+//   provider = "prisma-client-js"
+// }
+
+// model User {
+//   id            String    @id @default(cuid())
+//   email         String    @unique
+//   hashedPassword String? // Optional if using OAuth or passwordless, but good for email/pass
+//   name          String?
+//   createdAt     DateTime  @default(now())
+//   updatedAt     DateTime  @updatedAt
+
+//   // Relations
+//   goals         Goal[]
+//   tasks         Task[]
+//   timerSessions TimerSession[]
+//   studyMaterials StudyMaterial[]
+//   habitLogs     HabitLog[]
+//   habits        Habit[]
+//   notes         Note[]
+//   decks         Deck[]
+//   flashcards    Flashcard[] // Add relation to Flashcard for collaborative editing check
+
+//   @@map("User")
+// }
+
+// model Goal {
+//   id          String    @id @default(cuid())
+//   name        String
+//   description String?   @db.Text
+//   type        GoalType  @default(short_term) // "long-term" or "short-term"
+//   targetDate  DateTime?
+//   createdAt   DateTime  @default(now())
+//   updatedAt   DateTime  @updatedAt
+//   userId      String
+//   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   tasks       Task[]    @relation("GoalTasks") // Explicitly name relation if tasks can belong to other things
+
+//   @@map("Goal")
+// }
+
+// model Task {
+//   id          String    @id @default(cuid())
+//   text        String    @db.Text
+//   completed   Boolean   @default(false)
+//   createdAt   DateTime  @default(now())
+//   updatedAt   DateTime  @updatedAt
+//   dueDate     DateTime?
+//   priority    Priority? // "low", "medium", "high"
+//   goalId      String?
+//   goal        Goal?     @relation("GoalTasks", fields: [goalId], references: [id], onDelete: SetNull) // onDelete: SetNull if task can exist without goal
+//   completedAt DateTime?
+//   userId      String
+//   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   timerSessions TimerSession[] // Tasks can have multiple timer sessions
+
+//   @@map("Task")
+// }
+
+// model TimerSession {
+//   id        String    @id @default(cuid())
+//   startTime DateTime
+//   endTime   DateTime
+//   duration  Int // in seconds
+//   mode      TimerMode // "pomodoro", "shortBreak", "longBreak"
+//   userId    String
+//   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   taskId    String?   // Optional: Link session to a specific task
+//   task      Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+//   @@map("TimerSession")
+// }
+
+// model StudyMaterial {
+//   id          String    @id @default(cuid())
+//   name        String
+//   dataUri     String?   @db.Text // For storing base64 PDF data if not using cloud storage
+//   // storageRef  String?   // For cloud storage path (e.g., Firebase Storage)
+//   fileType    String?   // e.g., "application/pdf"
+//   fileSize    Int?
+//   uploadDate  DateTime  @default(now())
+//   tags        String[]  // Stored as a JSON string or separate table if DB doesn't support array
+//   isImported  Boolean   @default(false) // True if created via import, false if uploaded
+//   userId      String
+//   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   deck        Deck?     // If a deck is directly generated from this material
+
+//   @@map("StudyMaterial")
+// }
+
+
+// model Note {
+//   id         String    @id @default(cuid())
+//   name       String?   // Optional name, maybe auto-generated initially
+//   content    String    @db.Text // Use Text type for potentially long markdown
+//   tags       String[]  // Stored as JSON string or separate table
+//   category   String    @default("Uncategorized")
+//   createdAt  DateTime  @default(now())
+//   updatedAt  DateTime  @updatedAt
+//   userId     String
+//   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   materialId String?   // Optional: if note is derived from a StudyMaterial
+//   material   StudyMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+
+//   @@map("Note")
+// }
+
+// model Habit {
+//   id        String    @id @default(cuid())
+//   name      String
+//   createdAt DateTime  @default(now())
+//   userId    String
+//   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   logs      HabitLog[]
+
+//   @@map("Habit")
+// }
+
+// model HabitLog {
+//   id        String   @id @default(cuid())
+//   date      DateTime // Date of the log
+//   completed Boolean
+//   userId    String
+//   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade) // For quicker user-based queries if needed
+//   habitId   String
+//   habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+//   @@unique([habitId, date, userId]) // Ensure one log per habit per user
+//   @@map("HabitLog")
+// }
+
+
+// model Deck {
+//   id         String   @id @default(cuid())
+//   name       String
+//   createdAt  DateTime @default(now())
+//   updatedAt  DateTime @updatedAt
+//   userId     String
+//   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   sourceId   String?  // ID of the source (e.g., StudyMaterial.id or Note.id)
+//   sourceType String?  // "material", "note", "import", "manual"
+
+//   // Relation if Deck is generated *from* a StudyMaterial
+//   material   StudyMaterial? @relation(fields: [sourceId], references: [id], onDelete: SetNull, name: "DeckSourceMaterial")
+
+//   flashcards Flashcard[]
+//   cardCount  Int        @default(0) // Keep track of card count for performance
+
+//   @@map("Deck")
+// }
+
+// model Flashcard {
+//   id        String   @id @default(cuid())
+//   question  String   @db.Text
+//   answer    String   @db.Text
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+//   deckId    String
+//   deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+//   // userId    String? // If flashcards can be shared or have individual owners outside of decks
+
+//   @@map("Flashcard")
+// }
+
+
+// // Enums - if your DB supports them (PostgreSQL does, SQLite needs workarounds like string fields)
+// enum GoalType {
+//   long_term
+//   short_term
+// }
+
+// enum Priority {
+//   low
+//   medium
+//   high
+// }
+
+// enum TimerMode {
+//   pomodoro
+//   shortBreak
+//   longBreak
+// }

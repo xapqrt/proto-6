@@ -1,0 +1,257 @@
+// src/hooks/use-auth.tsx
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useToast } from './use-toast';
+
+// Admin email from environment
+const ADMIN_EMAIL_FROM_ENV = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'fowlstar1@gmail.com';
+
+interface SessionUser {
+  id: string;
+  email: string;
+}
+
+interface AuthContextType {
+  user: SessionUser | null;
+  userId: string | null;
+  loading: boolean;
+  isAdmin: boolean;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; message: string; user?: SessionUser }>;
+  signUp: (email: string, password: string) => Promise<{ success: boolean; message: string; user?: SessionUser }>;
+  signOut: () => Promise<void>;
+  getAllUsers?: () => Promise<{ id: string; email: string, createdAt: string }[] | null>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
+  const { toast } = useToast();
+
+  const checkSession = useCallback(async () => {
+    console.log('AuthProvider: Checking session...');
+    // setLoading(true); // Set loading at the start if needed, but manage carefully to avoid loops
+    try {
+      const response = await fetch('/api/auth/session');
+      const data = await response.json();
+      console.log('AuthProvider: Session check response status:', response.status, 'Data:', data);
+
+      if (response.ok && data.user) {
+        console.log('AuthProvider: Session valid, user found:', data.user);
+        setUser(data.user);
+        setUserId(data.user.id);
+        if (['/login', '/signup'].includes(pathname)) {
+            console.log('AuthProvider: User on public route, redirecting to /dashboard');
+            router.replace('/dashboard');
+        }
+      } else {
+        console.log('AuthProvider: No active session or error during session check.');
+        setUser(null);
+        setUserId(null);
+        // Do not set loading here, let the finally block handle it.
+        // Avoid redirecting from here if loading is true, as it might be initial load.
+        if (!['/login', '/signup'].includes(pathname) && !pathname.startsWith('/api')) {
+          // Only redirect if not on public/API route and session check explicitly failed (and not initial load)
+          // This is tricky because initial `loading` is true.
+          // This specific redirect should probably be handled by middleware or a top-level page component.
+          // For now, let's rely on middleware and the component-level effects.
+          // router.replace('/login'); // Potentially problematic here
+        }
+      }
+    } catch (error) {
+      console.error("AuthProvider: Error checking session:", error);
+      setUser(null);
+      setUserId(null);
+      // Similar to above, avoid redirecting if initial load or on public pages.
+      // if (!['/login', '/signup'].includes(pathname) && !pathname.startsWith('/api')) {
+      //    router.replace('/login');
+      // }
+    } finally {
+      setLoading(false); // Crucial: ensure loading is set to false after check
+      console.log('AuthProvider: Session check complete, loading set to false.');
+    }
+  }, [pathname, router]); // Removed 'loading' from dependencies
+
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]); // checkSession's identity changes if pathname or router changes.
+
+  useEffect(() => {
+    // This effect runs when user, authLoading, router, or pathname changes.
+    // It's a safeguard to ensure redirection if user is authenticated and on a public route.
+    if (user && !loading) { // Changed from authLoading to loading (the state variable of AuthProvider)
+      if (['/login', '/signup'].includes(pathname)) {
+        console.log(`AuthProvider useEffect: User authenticated (${user.email}) and on public route (${pathname}). Redirecting to /dashboard.`);
+        router.replace('/dashboard');
+      }
+    }
+  }, [user, loading, router, pathname]);
+
+
+  const isAdmin = useMemo(() => !!user && user.email.toLowerCase() === ADMIN_EMAIL_FROM_ENV.toLowerCase(), [user]);
+
+  const handleApiAuth = async (endpoint: string, body: any): Promise<{ success: boolean; message: string; user?: SessionUser }> => {
+    console.log(`AuthProvider: Attempting API auth at ${endpoint} for email:`, body.email);
+    setLoading(true);
+    let responseText = ''; // To store the raw response text
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      
+      responseText = await response.text(); // Read text first to ensure it's available for logging
+      let data;
+
+      try {
+        data = JSON.parse(responseText); // Attempt to parse JSON
+      } catch (parseError) {
+        console.error(`AuthProvider: Failed to parse JSON response from ${endpoint}. Status: ${response.status}. Response text: ${responseText}`);
+        toast({ title: "Error", description: "Received an invalid response from the server.", variant: "destructive" });
+        // setLoading(false) will be handled in finally
+        return { success: false, message: "Invalid server response." };
+      }
+      
+      console.log(`AuthProvider: API response from ${endpoint} - Status: ${response.status}, Data:`, data);
+
+      if (response.ok && data.user) {
+        console.log(`AuthProvider: API auth successful for ${endpoint}. User:`, data.user);
+        setUser(data.user);
+        setUserId(data.user.id);
+        toast({ title: data.message || (endpoint.includes('signup') ? "Signup Successful" : "Login Successful") });
+        router.replace('/dashboard'); // Use replace for login/signup redirects
+        // setLoading(false) will be handled in finally
+        return { success: true, message: data.message || "Success", user: data.user };
+      } else {
+        console.warn(`AuthProvider: API auth failed for ${endpoint}. Message:`, data.message);
+        setUser(null);
+        setUserId(null);
+        toast({ title: data.message || "Authentication Failed", variant: "destructive" });
+        // setLoading(false) will be handled in finally
+        return { success: false, message: data.message || "An error occurred" };
+      }
+    } catch (error) {
+      console.error(`AuthProvider: Network or unexpected error during API auth at ${endpoint}:`, error);
+      const errorMessage = error instanceof Error ? error.message : "Network error or server unavailable.";
+      setUser(null);
+      setUserId(null);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      // setLoading(false) will be handled in finally
+      return { success: false, message: errorMessage };
+    } finally {
+        setLoading(false); // Ensure loading is always reset
+    }
+  };
+
+  const signIn = useCallback(
+    (email: string, password: string) => handleApiAuth('/api/auth/login', { email, password }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, toast] // router and toast are stable enough for deps here
+  );
+
+  const signUp = useCallback(
+    (email: string, password: string) => handleApiAuth('/api/auth/signup', { email, password }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, toast]
+  );
+
+  const signOut = useCallback(async () => {
+    console.log('AuthProvider: Attempting sign out...');
+    setLoading(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      setUser(null);
+      setUserId(null);
+      toast({ title: "Signed Out", description: "You have been successfully signed out." });
+      router.replace('/login'); // Use replace
+      console.log('AuthProvider: Sign out successful, redirected to /login.');
+    } catch (error) {
+      console.error("AuthProvider: Sign out error:", error);
+      toast({ title: "Sign Out Failed", variant: "destructive" });
+    } finally {
+      setLoading(false);
+      console.log('AuthProvider: Sign out attempt finished, loading set to false.');
+    }
+  }, [router, toast]);
+
+  const getAllUsers = useCallback(async (): Promise<{ id: string; email: string, createdAt: string }[] | null> => {
+    if (!isAdmin) { 
+      console.warn("AuthProvider: Attempted to get all users when not admin.");
+      return null;
+    }
+    console.log('AuthProvider: Admin attempting to fetch all users...');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/users');
+      console.log('AuthProvider: Admin get users response status:', response.status);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('AuthProvider: Admin get users error data:', errorData);
+        throw new Error(errorData.message || `Failed to fetch users: ${response.statusText}`);
+      }
+      const data = await response.json();
+      console.log('AuthProvider: Admin get users success, user count:', data.users?.length);
+      return data.users;
+    } catch (error) {
+      console.error("AuthProvider: Error fetching all users for admin:", error);
+      const errorMessage = error instanceof Error ? error.message : "Could not load user data.";
+      toast({ title: "Admin Error", description: errorMessage, variant: "destructive" });
+      return null;
+    } finally {
+      setLoading(false);
+      console.log('AuthProvider: Admin get users attempt finished, loading set to false.');
+    }
+  }, [isAdmin, toast]);
+
+
+  const value = useMemo(() => ({
+    user,
+    userId,
+    loading,
+    isAdmin,
+    signIn,
+    signUp,
+    signOut,
+    getAllUsers: isAdmin ? getAllUsers : undefined, 
+  }), [user, userId, loading, isAdmin, signIn, signUp, signOut, getAllUsers]);
+
+  // This loader is for the initial screen when the app loads and checks session
+  // OR for when user is on /login or /signup and an auth action (signIn/signUp) is in progress.
+  if (loading && !user && !['/login', '/signup'].includes(pathname)) {
+    // Initial app load, checking session, user not yet known, on a protected route
+    return (
+      <div className="flex justify-center items-center h-screen w-screen bg-background">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        <span className="ml-3 text-muted-foreground">Loading LifeOS...</span>
+      </div>
+    );
+  }
+
+  if (loading && (pathname === '/login' || pathname === '/signup')) {
+    // Actively trying to login or signup, or initial load on these pages before session is known
+     return (
+       <div className="flex justify-center items-center h-screen w-screen bg-background">
+         <Loader2 className="w-12 h-12 animate-spin text-primary" />
+         <span className="ml-3 text-muted-foreground">Authenticating...</span>
+       </div>
+     );
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

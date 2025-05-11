@@ -1,0 +1,105 @@
+/* login-overlay.css - Critical CSS to prevent login form flash */
+
+/*
+ * Extreme specificity selectors to ensure these rules override everything else
+ * These selectors specifically target the login form and its container 
+ * during auth transitions, preventing any flash of login UI on the dashboard
+ */
+
+/* Base overlay style with maximum z-index */
+.login-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 999999 !important; /* Ultra-high z-index */
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  background-color: var(--background) !important;
+  height: 100vh !important;
+  width: 100vw !important;
+}
+
+/* Comprehensive selectors targeting all possible login form elements */
+.auth-transitioning form,
+.auth-transitioning .card,
+.auth-transitioning input,
+.auth-transitioning button,
+.auth-transitioning label,
+[data-auth-state="transitioning"] form, 
+[data-auth-state="transitioning"] .card,
+[data-auth-state="authenticated"] form,
+[data-auth-state="authenticated"] .login-form,
+[data-auth-state="authenticated"] .card,
+body:has([data-auth-state="transitioning"]) form,
+body:has([data-auth-state="authenticated"]) form,
+html:has(body.auth-transitioning) form,
+html:has(body.auth-transitioning) .card,
+html:has(body.authenticated) form,
+html:has(body.authenticated) .login-form {
+  /* Multiple layer approach to ensure element is completely hidden */
+  opacity: 0 !important;
+  position: absolute !important;
+  pointer-events: none !important;
+  z-index: -99999 !important; /* Extremely low z-index */
+  transform: scale(0) !important;
+  visibility: hidden !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  clip: rect(0 0 0 0) !important; /* Additional clipping */
+  clip-path: inset(50%) !important; /* Additional clipping */
+}
+
+/* Specific selector targeting any element with login in the class name */
+[class*="login"],
+.login-form,
+.login-card,
+div:has(> form),
+.card:has(input[type="password"]),
+.card:has(input[type="email"]) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Additional body-level control */
+body.auth-transitioning,
+body.authenticated {
+  overflow: hidden !important;
+}
+
+/* Force smooth transitions - lower priority as this doesn't affect hiding */
+* {
+  transition: opacity 0.3s ease, visibility 0.3s ease !important;
+}
+
+/* Critical loading overlay with highest z-index when transitioning */
+.critical-auth-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999999 !important; /* Maximum z-index */
+  background-color: var(--background, #fff) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  flex-direction: column !important;
+  pointer-events: auto !important; /* Ensure it can block interactions */
+}
+
+/* Apply styles to every child of critical-auth-overlay */
+.critical-auth-overlay * {
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: auto !important;
+}
